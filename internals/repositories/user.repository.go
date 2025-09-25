@@ -49,6 +49,7 @@ func (ur *UserRepository) GetUser(rctx context.Context, uid int) ([]models.User,
 func (ur *UserRepository) GetUserHistoryTransactions(rctx context.Context, uid, limit, offset int) (models.UserHistoryTransactions, error) {
 	sql := `
 		SELECT
+			t.id,
 			t.id_receiver,
 			p.img,
 			p.fullname,
@@ -57,7 +58,7 @@ func (ur *UserRepository) GetUserHistoryTransactions(rctx context.Context, uid, 
 			t.total
 		FROM transactions t
 		LEFT JOIN profiles p ON p.id = t.id_receiver
-		WHERE t.deleted_at IS NULL
+		WHERE t.deleted_sender IS NULL
 		AND t.id_sender = $1
 		ORDER BY t.created_at DESC;
 	`
@@ -72,6 +73,7 @@ func (ur *UserRepository) GetUserHistoryTransactions(rctx context.Context, uid, 
 	for rows.Next() {
 		var transaction models.Transaction
 		if err := rows.Scan(
+			&transaction.TransactionID,
 			&transaction.ReceiverID,
 			&transaction.Avatar,
 			&transaction.FullName,
@@ -93,7 +95,7 @@ func (ur *UserRepository) GetUserHistoryTransactions(rctx context.Context, uid, 
 func (ur *UserRepository) SoftDeleteTransaction(rctx context.Context, uid, transactionId int) error {
 	sql := `
 		UPDATE transactions
-		SET deleted_at = current_date
+		SET deleted_sender = current_date
 		WHERE id_sender = $1
 		AND id = $2
 	`
