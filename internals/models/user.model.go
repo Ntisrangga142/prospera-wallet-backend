@@ -7,11 +7,12 @@ type User struct {
 }
 
 type UserHistoryTransactions struct {
-	ID           int           `json:"id"`
+	ID           int           `json:"sender_id"`
 	Transactions []Transaction `json:"transactions"`
 }
 
 type Transaction struct {
+	TransactionID   int     `json:"transaction_id"`
 	ReceiverID      int     `json:"receiver_id"`
 	Avatar          *string `json:"avatar"`
 	FullName        *string `json:"receiver_name"`
