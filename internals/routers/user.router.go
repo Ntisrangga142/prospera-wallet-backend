@@ -22,4 +22,5 @@ func InitUserRouter(router *gin.Engine, db *pgxpool.Pool) {
 	userGroup.DELETE("")
 
 	userGroup.PATCH("/password", middlewares.Authentication, uh.ChangePassword)
+
 }
