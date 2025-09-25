@@ -18,5 +18,4 @@ func InitUserRouter(router *gin.Engine, db *pgxpool.Pool) {
 	userGroup.GET("/transactions", uh.HandleGetUserTransactionsHistory)
 	userGroup.DELETE("transactions/:id", uh.HandleSoftDeleteTransaction)
 	userGroup.PATCH("/password", middlewares.Authentication, uh.ChangePassword)
-
 }
