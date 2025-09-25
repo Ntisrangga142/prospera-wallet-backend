@@ -8,7 +8,8 @@ import (
 func (ur *Auth) UpdatePIN(rctx context.Context, newPin string, uid int) error {
 	sql := `
 		UPDATE accounts
-		SET pin = $1
+		SET pin = $1,
+		    updated_at = NOW()
 		WHERE id = $2
 	`
 
@@ -17,7 +18,7 @@ func (ur *Auth) UpdatePIN(rctx context.Context, newPin string, uid int) error {
 		return err
 	}
 	if ctag.RowsAffected() == 0 {
-		return errors.New("unable to create user's PIN")
+		return errors.New("unable to update user's PIN")
 	}
 
 	return nil
