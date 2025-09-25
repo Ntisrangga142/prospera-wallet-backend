@@ -109,3 +109,37 @@ func (ur *UserRepository) SoftDeleteTransaction(rctx context.Context, uid, trans
 
 	return nil
 }
+
+func (ur *UserRepository) GetPasswordFromID(ctx context.Context, id int) (string, error) {
+	query := `
+		SELECT
+			password
+		FROM
+			accounts
+		WHERE
+			id = $1
+	`
+
+	var userPass string
+
+	if err := ur.db.QueryRow(ctx, query, id).Scan(&userPass); err != nil {
+		return "", errors.New("failed to login")
+	}
+	return userPass, nil
+}
+
+func (ur *UserRepository) ChangePassword(ctx context.Context, userID int, hashedPassword string) error {
+	query := `
+	UPDATE
+		accounts
+	SET
+		password = $1,
+		updated_at = CURRENT_TIMESTAMP
+	WHERE
+		id = $2`
+	_, err := ur.db.Exec(ctx, query, hashedPassword, userID)
+	if err != nil {
+		return err
+	}
+	return nil
+}
