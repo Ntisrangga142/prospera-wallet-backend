@@ -5,7 +5,7 @@ import (
 	"errors"
 )
 
-func (ur *Auth) CreatePIN(rctx context.Context, newPin string, uid int) error {
+func (ur *Auth) UpdatePIN(rctx context.Context, newPin string, uid int) error {
 	sql := `
 		UPDATE accounts
 		SET pin = $1
