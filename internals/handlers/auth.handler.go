@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -74,7 +75,7 @@ func (h *AuthHandler) Login(ctx *gin.Context) {
 		return
 	}
 	if !match {
-		utils.HandleError(ctx, http.StatusUnauthorized, "Unauthorized", "invalid password", err)
+		utils.HandleError(ctx, http.StatusUnauthorized, "Unauthorized", "invalid username or password", errors.New("invalid password"))
 		return
 	}
 
