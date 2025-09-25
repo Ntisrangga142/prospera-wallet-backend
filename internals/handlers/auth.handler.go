@@ -42,7 +42,7 @@ func (h *AuthHandler) Register(ctx *gin.Context) {
 
 	ctx.JSON(http.StatusCreated, models.Response[string]{
 		Success: true,
-		Message: "Register successful",
+		Message: "Register account successful",
 		Data:    "",
 	})
 }

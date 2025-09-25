@@ -40,7 +40,7 @@ func (h *AuthHandler) CreatePIN(ctx *gin.Context) {
 
 	ctx.JSON(http.StatusCreated, models.Response[string]{
 		Success: true,
-		Message: "Register successful",
+		Message: "Register PIN successful",
 		Data:    "",
 	})
 }
