@@ -24,6 +24,7 @@ func NewUserHandler(ur *repositories.UserRepository, rdb *redis.Client) *UserHan
 	return &UserHandler{ur: ur, rdb: rdb}
 }
 
+// GET PROFILE
 func (uh *UserHandler) GetProfile(ctx *gin.Context) {
 	uid, err := utils.GetUserIDFromJWT(ctx)
 	if err != nil {
@@ -44,6 +45,7 @@ func (uh *UserHandler) GetProfile(ctx *gin.Context) {
 	})
 }
 
+// UPDATE PROFILE
 func (uh *UserHandler) UpdateProfile(ctx *gin.Context) {
 	uid, err := utils.GetUserIDFromJWT(ctx)
 	if err != nil {
@@ -88,6 +90,7 @@ func (uh *UserHandler) UpdateProfile(ctx *gin.Context) {
 	})
 }
 
+// GET ALL USERS
 func (uh *UserHandler) GetAllUsers(ctx *gin.Context) {
 	uid, err := utils.GetUserIDFromJWT(ctx)
 	if err != nil {
@@ -108,6 +111,7 @@ func (uh *UserHandler) GetAllUsers(ctx *gin.Context) {
 	})
 }
 
+// GET HISTORY TRANSACTIONS
 func (h *UserHandler) GetUserHistoryTransactions(c *gin.Context) {
 	// Ambil user_id dari Token
 	userID, err := utils.GetUserIDFromJWT(c)
@@ -145,6 +149,7 @@ func (h *UserHandler) GetUserHistoryTransactions(c *gin.Context) {
 	})
 }
 
+// DELETE HISTORY TRANSACTIONS
 func (uh *UserHandler) HandleSoftDeleteTransaction(ctx *gin.Context) {
 	uid, err := utils.GetUserIDFromJWT(ctx)
 	if err != nil {
@@ -174,7 +179,7 @@ func (uh *UserHandler) HandleSoftDeleteTransaction(ctx *gin.Context) {
 	})
 }
 
-// Digunakan di halaman Change Password
+// PATCH CHANGE PASSWORD
 func (uh *UserHandler) ChangePassword(ctx *gin.Context) {
 	var req models.ChangePassword
 

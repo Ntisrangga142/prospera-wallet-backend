@@ -18,6 +18,7 @@ func NewUserRepository(db *pgxpool.Pool) *UserRepository {
 	return &UserRepository{db: db}
 }
 
+// GET PROFILE
 func (ur *UserRepository) GetProfile(ctx context.Context, uid int) (*models.Profile, error) {
 	sql := `
 		SELECT fullname, phone, img, verified
@@ -41,6 +42,7 @@ func (ur *UserRepository) GetProfile(ctx context.Context, uid int) (*models.Prof
 	return &profile, nil
 }
 
+// UPDATE PROFILE
 func (ur *UserRepository) UpdateProfile(ctx context.Context, uid int, updates map[string]any) error {
 	if len(updates) == 0 {
 		return nil
@@ -71,6 +73,7 @@ func (ur *UserRepository) UpdateProfile(ctx context.Context, uid int, updates ma
 	return err
 }
 
+// GET ALL USERS
 func (ur *UserRepository) GetAllUser(rctx context.Context, uid int) ([]models.User, error) {
 	sql := `
 		SELECT id, fullname, phone, img
@@ -102,6 +105,7 @@ func (ur *UserRepository) GetAllUser(rctx context.Context, uid int) ([]models.Us
 	return users, nil
 }
 
+// GET HISTORY TRANSACTIONS
 func (ur *UserRepository) GetUserHistoryTransactions(ctx context.Context, userID int) ([]models.TransactionHistory, error) {
 	query := `
 	WITH user_participant AS (
@@ -191,6 +195,7 @@ func (ur *UserRepository) GetUserHistoryTransactions(ctx context.Context, userID
 	return transactions, nil
 }
 
+// DELETE HISTORY TRANSACTIONS
 func (ur *UserRepository) SoftDeleteTransaction(rctx context.Context, uid, transactionId int) error {
 	sql := `
 		UPDATE transactions SET 
@@ -219,7 +224,7 @@ func (ur *UserRepository) SoftDeleteTransaction(rctx context.Context, uid, trans
 	return nil
 }
 
-// Untuk mengganti password
+// PATCH CHANGE PASSWORD
 func (ur *UserRepository) GetPasswordFromID(ctx context.Context, id int) (string, error) {
 	query := `
 		SELECT
