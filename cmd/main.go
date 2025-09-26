@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	_ "image/jpeg"
+	_ "image/png"
 	"log"
 
 	"github.com/joho/godotenv"

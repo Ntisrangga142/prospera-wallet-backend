@@ -3,18 +3,20 @@ package utils
 import (
 	"fmt"
 	"image"
+	"image/jpeg"
+	"image/png"
 	"mime/multipart"
 	"os"
 	"path/filepath"
 	"strings"
 
+	"github.com/disintegration/imaging"
 	"github.com/gin-gonic/gin"
 )
 
-// SaveUploadedFile menyimpan file upload ke direktori tujuan dengan validasi
 func SaveUploadedFile(ctx *gin.Context, file *multipart.FileHeader, destDir string, filename string) (string, error) {
 	// 1. Validasi ekstensi
-	ext := strings.ToLower(filepath.Ext(file.Filename))
+	ext := strings.ToLower(strings.TrimSpace(filepath.Ext(file.Filename)))
 	if ext != ".jpg" && ext != ".jpeg" && ext != ".png" {
 		return "", fmt.Errorf("invalid file type: only jpg, jpeg, png allowed")
 	}
@@ -25,38 +27,49 @@ func SaveUploadedFile(ctx *gin.Context, file *multipart.FileHeader, destDir stri
 		return "", fmt.Errorf("file too large: maximum size is 1MB")
 	}
 
-	// 3. Validasi resolusi gambar (max 512x512)
-	src, err := file.Open()
+	// 3. Baca isi file ke buffer supaya bisa di-decode ulang
+	srcFile, err := file.Open()
 	if err != nil {
 		return "", fmt.Errorf("failed to open file: %w", err)
 	}
-	defer src.Close()
+	defer srcFile.Close()
 
-	imgCfg, _, err := image.DecodeConfig(src)
+	// Decode image dari buffer
+	img, format, err := image.Decode(srcFile)
 	if err != nil {
 		return "", fmt.Errorf("invalid image: %w", err)
 	}
-	if imgCfg.Width > 512 || imgCfg.Height > 512 {
-		return "", fmt.Errorf("invalid resolution: max allowed is 512x512")
-	}
+
+	// 4. Resize otomatis ke 512x512 (force square)
+	resizedImg := imaging.Resize(img, 512, 512, imaging.Lanczos)
 
 	// Buat folder jika belum ada
 	if err := os.MkdirAll(destDir, os.ModePerm); err != nil {
 		return "", fmt.Errorf("failed to create directory: %w", err)
 	}
 
-	// Nama final file (contoh: profile_12.png)
+	// Nama final file
 	finalName := fmt.Sprintf("%s%s", filename, ext)
 	fullPath := filepath.Join(destDir, finalName)
 
-	// Simpan file
-	if err := ctx.SaveUploadedFile(file, fullPath); err != nil {
-		return "", fmt.Errorf("failed to save file: %w", err)
+	// 5. Simpan hasil resize
+	out, err := os.Create(fullPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to create file: %w", err)
+	}
+	defer out.Close()
+
+	switch format {
+	case "jpeg":
+		err = jpeg.Encode(out, resizedImg, &jpeg.Options{Quality: 90})
+	case "png":
+		err = png.Encode(out, resizedImg)
+	default:
+		return "", fmt.Errorf("unsupported image format: %s", format)
+	}
+	if err != nil {
+		return "", fmt.Errorf("failed to save image: %w", err)
 	}
 
-	return fullPath, nil
+	return finalName, nil
 }
-
-// ukuran resolusi 512*512
-// extensi jpeg, jpg, png
-// ukuran maksimal 1 mb
