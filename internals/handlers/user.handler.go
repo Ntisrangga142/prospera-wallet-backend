@@ -27,7 +27,7 @@ func (uh *UserHandler) HandlerGetAllUsers(ctx *gin.Context) {
 		return
 	}
 
-	users, err := uh.ur.GetUser(ctx.Request.Context(), uid)
+	users, err := uh.ur.GetUserList(ctx.Request.Context(), uid)
 	if err != nil {
 		utils.HandleError(ctx, http.StatusInternalServerError, "Internal Server Error", "unable get users", err)
 		return
@@ -136,5 +136,25 @@ func (uh *UserHandler) ChangePassword(ctx *gin.Context) {
 	ctx.JSON(http.StatusCreated, models.Response[any]{
 		Success: true,
 		Message: "Change password successful",
+	})
+}
+
+func (uh *UserHandler) HandleGetUserInfo(ctx *gin.Context) {
+	uid, err := utils.GetUserIDFromJWT(ctx)
+	if err != nil {
+		utils.HandleError(ctx, http.StatusInternalServerError, "Internal Server Error", "unable to get user's id", err)
+		return
+	}
+
+	userInfo, err := uh.ur.GetUserInfo(ctx, uid)
+	if err != nil {
+		utils.HandleError(ctx, http.StatusInternalServerError, "Internal Server Error", "unable to get user's information", err)
+		return
+	}
+
+	ctx.JSON(http.StatusOK, models.Response[models.User]{
+		Success: true,
+		Message: "success",
+		Data:    userInfo,
 	})
 }
