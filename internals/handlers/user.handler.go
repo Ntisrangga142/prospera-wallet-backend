@@ -65,7 +65,11 @@ func (uh *UserHandler) HandleSoftDeleteTransaction(ctx *gin.Context) {
 		return
 	}
 
-	transId, _ := strconv.Atoi(ctx.Param("id"))
+	transId, err := strconv.Atoi(ctx.Param("id"))
+	if err != nil {
+		utils.HandleError(ctx, http.StatusBadRequest, "Bad Request", "invalid param input", err)
+		return
+	}
 
 	if err := uh.ur.SoftDeleteTransaction(ctx.Request.Context(), uid, transId); err != nil {
 		utils.HandleError(ctx, http.StatusInternalServerError, "Internal Server Error", "unable to delete history", err)
