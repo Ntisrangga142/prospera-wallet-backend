@@ -58,6 +58,25 @@ func (ur *UserRepository) UpdateProfile(ctx context.Context, uid int, updates ma
 		i++
 	}
 
+	// cek apakah ada fullname, phone, img yang diupdate
+	needVerify := false
+	if _, ok := updates["fullname"]; ok {
+		needVerify = true
+	}
+	if _, ok := updates["phone"]; ok {
+		needVerify = true
+	}
+	if _, ok := updates["img"]; ok {
+		needVerify = true
+	}
+
+	// kalau fullname, phone, img semuanya sudah terisi → verified = true
+	if needVerify {
+		setClauses = append(setClauses,
+			"verified = (CASE WHEN fullname IS NOT NULL AND fullname <> '' AND phone IS NOT NULL AND phone <> '' AND img IS NOT NULL AND img <> '' THEN TRUE ELSE verified END)",
+		)
+	}
+
 	// tambah updated_at
 	setClauses = append(setClauses, "updated_at = NOW()")
 
