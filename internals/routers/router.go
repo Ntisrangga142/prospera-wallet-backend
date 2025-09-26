@@ -13,7 +13,7 @@ func InitRouter(db *pgxpool.Pool, rdb *redis.Client) *gin.Engine {
 
 	// Init Route Authentication
 	InitAuthRoutes(router, db, rdb)
-	InitUserRouter(router, db)
+	InitUserRouter(router, db, rdb)
 
 	return router
 }

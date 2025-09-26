@@ -2,6 +2,8 @@ package handlers
 
 import (
 	"errors"
+	"fmt"
+	"log"
 	"net/http"
 	"strconv"
 
@@ -10,24 +12,90 @@ import (
 	"github.com/prospera/internals/pkg"
 	"github.com/prospera/internals/repositories"
 	"github.com/prospera/internals/utils"
+	"github.com/redis/go-redis/v9"
 )
 
 type UserHandler struct {
-	ur *repositories.UserRepository
+	ur  *repositories.UserRepository
+	rdb *redis.Client
 }
 
-func NewUserHandler(ur *repositories.UserRepository) *UserHandler {
-	return &UserHandler{ur: ur}
+func NewUserHandler(ur *repositories.UserRepository, rdb *redis.Client) *UserHandler {
+	return &UserHandler{ur: ur, rdb: rdb}
 }
 
-func (uh *UserHandler) HandlerGetAllUsers(ctx *gin.Context) {
+func (uh *UserHandler) GetProfile(ctx *gin.Context) {
 	uid, err := utils.GetUserIDFromJWT(ctx)
 	if err != nil {
 		utils.HandleError(ctx, http.StatusInternalServerError, "Internal Server Error", "unable to get user's token", err)
 		return
 	}
 
-	users, err := uh.ur.GetUserList(ctx.Request.Context(), uid)
+	profile, err := uh.ur.GetProfile(ctx.Request.Context(), uid)
+	if err != nil {
+		utils.HandleError(ctx, http.StatusInternalServerError, "Internal Server Error", "unable get profile user", err)
+		return
+	}
+
+	ctx.JSON(http.StatusOK, models.Response[models.Profile]{
+		Success: true,
+		Message: "Success Get Profile User",
+		Data:    *profile,
+	})
+}
+
+func (uh *UserHandler) UpdateProfile(ctx *gin.Context) {
+	uid, err := utils.GetUserIDFromJWT(ctx)
+	if err != nil {
+		utils.HandleError(ctx, http.StatusUnauthorized, "Unauthorized", "invalid token", err)
+		return
+	}
+
+	updates := make(map[string]interface{})
+
+	// ambil field dari form-data (jika ada)
+	if fullname := ctx.PostForm("fullname"); fullname != "" {
+		updates["fullname"] = fullname
+	}
+	if phone := ctx.PostForm("phone"); phone != "" {
+		updates["phone"] = phone
+	}
+
+	// upload image jika ada
+	file, err := ctx.FormFile("img")
+	if err == nil {
+		destDir := "public/profile"
+		filename := fmt.Sprintf("profile_%d", uid)
+
+		path, saveErr := utils.SaveUploadedFile(ctx, file, destDir, filename)
+		if saveErr != nil {
+			utils.HandleError(ctx, http.StatusBadRequest, "Bad Request", "Upload Failed", saveErr)
+			return
+		}
+
+		updates["img"] = path
+	}
+
+	// update ke DB
+	if err := uh.ur.UpdateProfile(ctx.Request.Context(), uid, updates); err != nil {
+		utils.HandleError(ctx, http.StatusInternalServerError, "Internal Server Error", "failed to update profile", err)
+		return
+	}
+
+	ctx.JSON(http.StatusOK, models.Response[any]{
+		Success: true,
+		Message: "Profile updated successfully",
+	})
+}
+
+func (uh *UserHandler) GetAllUsers(ctx *gin.Context) {
+	uid, err := utils.GetUserIDFromJWT(ctx)
+	if err != nil {
+		utils.HandleError(ctx, http.StatusInternalServerError, "Internal Server Error", "unable to get user's token", err)
+		return
+	}
+
+	users, err := uh.ur.GetAllUser(ctx.Request.Context(), uid)
 	if err != nil {
 		utils.HandleError(ctx, http.StatusInternalServerError, "Internal Server Error", "unable get users", err)
 		return
@@ -40,23 +108,40 @@ func (uh *UserHandler) HandlerGetAllUsers(ctx *gin.Context) {
 	})
 }
 
-func (uh *UserHandler) HandleGetUserTransactionsHistory(ctx *gin.Context) {
-	uid, err := utils.GetUserIDFromJWT(ctx)
+func (h *UserHandler) GetUserHistoryTransactions(c *gin.Context) {
+	// Ambil user_id dari Token
+	userID, err := utils.GetUserIDFromJWT(c)
 	if err != nil {
-		utils.HandleError(ctx, http.StatusInternalServerError, "Internal Server Error", "unable get user's history transaction", err)
+		utils.HandleError(c, http.StatusUnauthorized, "Unauthorized", "user not found", err)
 		return
 	}
 
-	history, err := uh.ur.GetUserHistoryTransactions(ctx, uid, 0, 0)
-	if err != nil {
-		utils.HandleError(ctx, http.StatusInternalServerError, "Internal Server Error", "unable get user's history transaction", err)
+	var cachedData []models.TransactionHistory
+	var redisKey = fmt.Sprintf("Prospera-HistoryTransactions_%d", userID)
+	if err := utils.CacheHit(c.Request.Context(), h.rdb, redisKey, &cachedData); err == nil {
+		c.JSON(http.StatusOK, models.Response[[]models.TransactionHistory]{
+			Success: true,
+			Message: "Success Get History (from cache)",
+			Data:    cachedData,
+		})
 		return
 	}
 
-	ctx.JSON(http.StatusOK, models.Response[models.UserHistoryTransactions]{
+	transactions, err := h.ur.GetUserHistoryTransactions(c.Request.Context(), userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		utils.HandleError(c, http.StatusInternalServerError, "Internal Server Error", "failed get history transaction", err)
+		return
+	}
+
+	if err := utils.RenewCache(c.Request.Context(), h.rdb, redisKey, transactions, 10); err != nil {
+		log.Println("Failed to set redis cache:", err)
+	}
+
+	c.JSON(http.StatusOK, models.Response[[]models.TransactionHistory]{
 		Success: true,
-		Message: "success",
-		Data:    history,
+		Message: "Success Get History",
+		Data:    transactions,
 	})
 }
 
@@ -75,6 +160,11 @@ func (uh *UserHandler) HandleSoftDeleteTransaction(ctx *gin.Context) {
 
 	if err := uh.ur.SoftDeleteTransaction(ctx.Request.Context(), uid, transId); err != nil {
 		utils.HandleError(ctx, http.StatusInternalServerError, "Internal Server Error", "unable to delete history", err)
+	}
+
+	var redisKey = fmt.Sprintf("Prospera-HistoryTransactions_%d", uid)
+	if err := utils.InvalidateCache(ctx, uh.rdb, redisKey); err != nil {
+		log.Println("Failed invalidate cache:", err)
 	}
 
 	ctx.JSON(http.StatusOK, models.Response[string]{
