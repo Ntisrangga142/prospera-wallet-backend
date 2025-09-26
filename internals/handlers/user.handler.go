@@ -32,10 +32,25 @@ func (uh *UserHandler) GetProfile(ctx *gin.Context) {
 		return
 	}
 
+	var cachedData models.Profile
+	var redisKey = fmt.Sprintf("Prospera-Profile-%d", uid)
+	if err := utils.CacheHit(ctx.Request.Context(), uh.rdb, redisKey, &cachedData); err == nil {
+		ctx.JSON(http.StatusOK, models.Response[models.Profile]{
+			Success: true,
+			Message: "Success Get Profile User (from cache)",
+			Data:    cachedData,
+		})
+		return
+	}
+
 	profile, err := uh.ur.GetProfile(ctx.Request.Context(), uid)
 	if err != nil {
 		utils.HandleError(ctx, http.StatusInternalServerError, "Internal Server Error", "unable get profile user", err)
 		return
+	}
+
+	if err := utils.RenewCache(ctx.Request.Context(), uh.rdb, redisKey, profile, 10); err != nil {
+		log.Println("Failed to set redis cache:", err)
 	}
 
 	ctx.JSON(http.StatusOK, models.Response[models.Profile]{
@@ -84,6 +99,11 @@ func (uh *UserHandler) UpdateProfile(ctx *gin.Context) {
 		return
 	}
 
+	var redisKey = fmt.Sprintf("Prospera-Profile-%d", uid)
+	if err := utils.InvalidateCache(ctx, uh.rdb, redisKey); err != nil {
+		log.Println("Failed invalidate cache:", err)
+	}
+
 	ctx.JSON(http.StatusOK, models.Response[any]{
 		Success: true,
 		Message: "Profile updated successfully",
@@ -98,10 +118,25 @@ func (uh *UserHandler) GetAllUsers(ctx *gin.Context) {
 		return
 	}
 
+	var cachedData []models.User
+	var redisKey = fmt.Sprintf("Prospera-AllUser-%d", uid)
+	if err := utils.CacheHit(ctx.Request.Context(), uh.rdb, redisKey, &cachedData); err == nil {
+		ctx.JSON(http.StatusOK, models.Response[[]models.User]{
+			Success: true,
+			Message: "Success Get History (from cache)",
+			Data:    cachedData,
+		})
+		return
+	}
+
 	users, err := uh.ur.GetAllUser(ctx.Request.Context(), uid)
 	if err != nil {
 		utils.HandleError(ctx, http.StatusInternalServerError, "Internal Server Error", "unable get users", err)
 		return
+	}
+
+	if err := utils.RenewCache(ctx.Request.Context(), uh.rdb, redisKey, users, 10); err != nil {
+		log.Println("Failed to set redis cache:", err)
 	}
 
 	ctx.JSON(http.StatusOK, models.Response[[]models.User]{
@@ -179,7 +214,7 @@ func (uh *UserHandler) HandleSoftDeleteTransaction(ctx *gin.Context) {
 	})
 }
 
-// PATCH CHANGE PASSWORD
+// Digunakan di halaman Change Password
 func (uh *UserHandler) ChangePassword(ctx *gin.Context) {
 	var req models.ChangePassword
 

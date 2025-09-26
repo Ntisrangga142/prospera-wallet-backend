@@ -21,3 +21,4 @@ type BlacklistToken struct {
 	Token     string        `json:"token"`
 	ExpiresIn time.Duration `json:"expires_in"`
 }
+
