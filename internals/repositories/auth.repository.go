@@ -2,19 +2,25 @@ package repositories
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/prospera/internals/models"
+	"github.com/redis/go-redis/v9"
 )
 
 type Auth struct {
-	db *pgxpool.Pool
+	db  *pgxpool.Pool
+	rdb *redis.Client
 }
 
-func NewAuthRepo(db *pgxpool.Pool) *Auth {
-	return &Auth{db: db}
+func NewAuthRepo(Db *pgxpool.Pool, Rdb *redis.Client) *Auth {
+	return &Auth{db: Db, rdb: Rdb}
 }
 
 func (r *Auth) Register(ctx context.Context, email, password string) error {
@@ -78,4 +84,23 @@ func (r *Auth) Login(ctx context.Context, email string) (int, string, bool, erro
 
 	isPinExist := pin != nil && *pin != ""
 	return *id, *hashedPassword, isPinExist, nil
+}
+
+func (r *Auth) Logout(ctx context.Context, token string, expiresIn time.Duration) error {
+	data := models.BlacklistToken{
+		Token:     token,
+		ExpiresIn: expiresIn,
+	}
+	bt, err := json.Marshal(data)
+	if err != nil {
+		log.Println("❌ Internal Server Error.\nCause:", err)
+		return err
+	}
+
+	if err := r.rdb.Set(ctx, "blacklist:"+token, bt, expiresIn).Err(); err != nil {
+		log.Printf("❌ Redis Error.\nCause: %s\n", err)
+		return err
+	}
+
+	return nil
 }

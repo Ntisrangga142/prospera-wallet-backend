@@ -6,10 +6,11 @@ import (
 	"github.com/prospera/internals/handlers"
 	"github.com/prospera/internals/middlewares"
 	"github.com/prospera/internals/repositories"
+	"github.com/redis/go-redis/v9"
 )
 
-func InitAuthRoutes(router *gin.Engine, db *pgxpool.Pool) {
-	repo := repositories.NewAuthRepo(db)
+func InitAuthRoutes(router *gin.Engine, db *pgxpool.Pool, rdb *redis.Client) {
+	repo := repositories.NewAuthRepo(db, rdb)
 	handler := handlers.NewAuthHandler(repo)
 
 	auth := router.Group("/auth")
@@ -24,4 +25,5 @@ func InitAuthRoutes(router *gin.Engine, db *pgxpool.Pool) {
 	auth.POST("/pin", middlewares.Authentication, handler.UpdatePIN)
 
 	// Logout
+	auth.DELETE("/logout", middlewares.Authentication, handler.Logout)
 }

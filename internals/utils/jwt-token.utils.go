@@ -56,3 +56,16 @@ func GetExpiredFromJWT(ctx *gin.Context) (time.Time, error) {
 
 	return claims.RegisteredClaims.ExpiresAt.Time, nil
 }
+
+func GetToken(ctx *gin.Context) (string, error) {
+	// Ambil header Authorization
+	authHeader := ctx.GetHeader("Authorization")
+	if authHeader == "" {
+		return "", errors.New("missing token")
+	}
+
+	// Buang prefix "Bearer "
+	tokenStr := strings.TrimPrefix(authHeader, "Bearer ")
+
+	return tokenStr, nil
+}

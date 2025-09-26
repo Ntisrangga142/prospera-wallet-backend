@@ -1,8 +1,10 @@
 package handlers
 
 import (
+	"context"
 	"errors"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/prospera/internals/models"
@@ -92,5 +94,36 @@ func (h *AuthHandler) Login(ctx *gin.Context) {
 		Message:    "Login successful",
 		Token:      token,
 		IsPinExist: isPinExist,
+	})
+}
+
+func (h *AuthHandler) Logout(ctx *gin.Context) {
+	token, err := utils.GetToken(ctx)
+	if err != nil {
+		utils.HandleError(ctx, http.StatusUnauthorized, "Unauthorized", "failed get token", err)
+		return
+	}
+
+	expiresAt, err := utils.GetExpiredFromJWT(ctx)
+	if err != nil {
+		utils.HandleError(ctx, http.StatusUnauthorized, "Unauthorized", "failed get expired time token", err)
+		return
+	}
+
+	expiresIn := time.Until(expiresAt)
+	if expiresIn <= 0 {
+		utils.HandleError(ctx, http.StatusUnauthorized, "Unauthorized", "token already expired", err)
+		return
+	}
+
+	if err = h.Repo.Logout(context.Background(), token, expiresIn); err != nil {
+		utils.HandleError(ctx, http.StatusInternalServerError, "Internal Server Error", "failed to blacklist token", err)
+		return
+	}
+
+	ctx.JSON(http.StatusOK, models.Response[string]{
+		Success: true,
+		Message: "Successfully logged out",
+		Data:    "",
 	})
 }
