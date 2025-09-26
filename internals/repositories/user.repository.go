@@ -16,9 +16,9 @@ func NewUserRepository(db *pgxpool.Pool) *UserRepository {
 	return &UserRepository{db: db}
 }
 
-func (ur *UserRepository) GetUser(rctx context.Context, uid int) ([]models.User, error) {
+func (ur *UserRepository) GetUserList(rctx context.Context, uid int) ([]models.User, error) {
 	sql := `
-		SELECT fullname, phone, img
+		SELECT id, fullname, phone, img
 		FROM profiles
 		WHERE id != $1
 	`
@@ -33,6 +33,7 @@ func (ur *UserRepository) GetUser(rctx context.Context, uid int) ([]models.User,
 	for rows.Next() {
 		var user models.User
 		if err := rows.Scan(
+			&user.ID,
 			&user.FullName,
 			&user.PhoneNumber,
 			&user.Avatar,
@@ -151,4 +152,28 @@ func (ur *UserRepository) ChangePassword(ctx context.Context, userID int, hashed
 		return err
 	}
 	return nil
+}
+
+func (ur *UserRepository) GetUserInfo(ctx context.Context, uid int) (models.User, error) {
+	sql := `
+		SELECT
+			id, fullname, phone, img, verified
+		FROM
+			profiles
+		WHERE
+			id = $1
+	`
+
+	var userInfo models.User
+	if err := ur.db.QueryRow(ctx, sql, uid).Scan(
+		&userInfo.ID,
+		&userInfo.FullName,
+		&userInfo.PhoneNumber,
+		&userInfo.Avatar,
+		&userInfo.IsVerified,
+	); err != nil {
+		return models.User{}, err
+	}
+
+	return userInfo, nil
 }
