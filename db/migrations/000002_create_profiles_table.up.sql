@@ -6,5 +6,5 @@ CREATE TABLE public.profiles (
     verified    BOOLEAN DEFAULT FALSE,
     created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_profiles_account FOREIGN KEY (id) REFERENCES accounts(id) 
+    CONSTRAINT fk_profiles_account FOREIGN KEY (id) REFERENCES accounts(id)
 );

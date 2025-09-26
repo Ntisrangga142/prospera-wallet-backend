@@ -3,5 +3,5 @@ CREATE TABLE public.wallets (
     balance     INTEGER DEFAULT 0,
     created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_wallets_account FOREIGN KEY (id) REFERENCES accounts(id) 
+    CONSTRAINT fk_wallets_account FOREIGN KEY (id) REFERENCES accounts(id)
 );
