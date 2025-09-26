@@ -34,7 +34,7 @@ func (r *Auth) Register(ctx context.Context, email, password string) error {
 	var userID int
 	queryAccount := `INSERT INTO accounts (email, password) VALUES ($1, $2) RETURNING id`
 	if err = tx.QueryRow(ctx, queryAccount, email, password).Scan(&userID); err != nil {
-		return fmt.Errorf("failed to insert accounts")
+		return fmt.Errorf("failed to insert accounts = %w", err)
 	}
 
 	// insert ke profiles
@@ -44,9 +44,15 @@ func (r *Auth) Register(ctx context.Context, email, password string) error {
 	}
 
 	// insert ke wallets
-	queryWallet := `INSERT INTO wallets (id, balance) VALUES ($1, 0);`
-	if _, err = tx.Exec(ctx, queryWallet, userID); err != nil {
+	queryWallet := `INSERT INTO wallets (id, balance) VALUES ($1, 0) RETURNING id;`
+	var walletID int
+	if err = tx.QueryRow(ctx, queryWallet, userID).Scan(&walletID); err != nil {
 		return fmt.Errorf("failed to insert wallets = %w", err)
+	}
+
+	queryParticipant := `INSERT INTO participants (type, ref_id, created_at) VALUES ('wallet', $1, NOW());`
+	if _, err = tx.Exec(ctx, queryParticipant, walletID); err != nil {
+		return fmt.Errorf("failed to insert profiles = %w", err)
 	}
 
 	// commit transaction
