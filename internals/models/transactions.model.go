@@ -9,6 +9,7 @@ type TransactionRequest struct {
 	Note              *string `json:"note,omitempty"`
 	InternalAccountID *int    `json:"internal_account_id,omitempty"` // wajib kalau top_up
 	ReceiverAccountID *int    `json:"receiver_account_id,omitempty"` // wajib kalau transfer
+	PIN               string  `json:"pin" binding:"required"`
 }
 
 // Transaction merepresentasikan hasil insert

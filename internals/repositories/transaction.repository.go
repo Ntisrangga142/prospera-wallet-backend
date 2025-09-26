@@ -3,7 +3,6 @@ package repositories
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -11,11 +10,11 @@ import (
 )
 
 type TransactionRepository struct {
-	db *pgxpool.Pool
+	DB *pgxpool.Pool
 }
 
-func NewTransactionRepository(db *pgxpool.Pool) *TransactionRepository {
-	return &TransactionRepository{db: db}
+func NewTransactionRepository(DB *pgxpool.Pool) *TransactionRepository {
+	return &TransactionRepository{DB: DB}
 }
 
 func (r *TransactionRepository) getOrCreateParticipant(ctx context.Context, tx pgx.Tx, typ string, refID int) (int, error) {
@@ -34,17 +33,16 @@ func (r *TransactionRepository) getOrCreateParticipant(ctx context.Context, tx p
 }
 
 func (r *TransactionRepository) CreateTransaction(ctx context.Context, txReq *models.TransactionRequest, userID int) error {
-	tx, err := r.db.Begin(ctx)
+	tx, err := r.DB.Begin(ctx)
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback(ctx) // rollback jika error
+	defer tx.Rollback(ctx)
 
 	var senderID, receiverID int
 
 	switch txReq.Type {
 	case "top_up":
-		// Sender: internal account
 		if txReq.InternalAccountID == nil {
 			return errors.New("internal account id required for top_up")
 		}
@@ -52,21 +50,16 @@ func (r *TransactionRepository) CreateTransaction(ctx context.Context, txReq *mo
 		if err != nil {
 			return err
 		}
-
-		// Receiver: wallet (userID)
 		receiverID, err = r.getOrCreateParticipant(ctx, tx, "wallet", userID)
 		if err != nil {
 			return err
 		}
 
 	case "transfer":
-		// Sender: wallet (userID)
 		senderID, err = r.getOrCreateParticipant(ctx, tx, "wallet", userID)
 		if err != nil {
 			return err
 		}
-
-		// Receiver: wallet (lain)
 		if txReq.ReceiverAccountID == nil {
 			return errors.New("receiver account id required for transfer")
 		}
@@ -76,41 +69,16 @@ func (r *TransactionRepository) CreateTransaction(ctx context.Context, txReq *mo
 		}
 
 	default:
-		return fmt.Errorf("invalid transaction type: %s", txReq.Type)
+		return errors.New("invalid transaction type")
 	}
 
-	// Insert transaksi
-	var transaction models.Transaction
-	query := `
+	_, err = tx.Exec(ctx, `
 		INSERT INTO transactions (type, amount, total, note, id_sender, id_receiver)
 		VALUES ($1, $2, $3, $4, $5, $6)
-		RETURNING id, type, amount, total, note, id_sender, id_receiver, created_at
-	`
-	err = tx.QueryRow(ctx, query,
-		txReq.Type,
-		txReq.Amount,
-		txReq.Total,
-		txReq.Note,
-		senderID,
-		receiverID,
-	).Scan(
-		&transaction.ID,
-		&transaction.Type,
-		&transaction.Amount,
-		&transaction.Total,
-		&transaction.Note,
-		&transaction.SenderID,
-		&transaction.ReceiverID,
-		&transaction.CreatedAt,
-	)
+	`, txReq.Type, txReq.Amount, txReq.Total, txReq.Note, senderID, receiverID)
 	if err != nil {
 		return err
 	}
 
-	// Commit transaksi
-	if err := tx.Commit(ctx); err != nil {
-		return err
-	}
-
-	return nil
+	return tx.Commit(ctx)
 }

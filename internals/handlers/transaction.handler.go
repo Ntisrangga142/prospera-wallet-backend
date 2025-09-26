@@ -1,10 +1,6 @@
 package handlers
 
 import (
-	"fmt"
-	"log"
-	"net/http"
-
 	"github.com/gin-gonic/gin"
 	"github.com/prospera/internals/models"
 	"github.com/prospera/internals/repositories"
@@ -25,29 +21,30 @@ func NewTransactionHandler(repo *repositories.TransactionRepository, rdb *redis.
 func (h *TransactionHandler) CreateTransaction(ctx *gin.Context) {
 	uid, err := utils.GetUserIDFromJWT(ctx)
 	if err != nil {
-		utils.HandleError(ctx, http.StatusUnauthorized, "Unauthorized", "invalid or missing token", err)
+		utils.HandleError(ctx, 401, "Unauthorized", "invalid token", err)
 		return
 	}
 
 	var req models.TransactionRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
-		utils.HandleError(ctx, http.StatusBadRequest, "Bad Request", "invalid request payload", err)
+		utils.HandleError(ctx, 400, "Bad Request", "invalid payload", err)
 		return
 	}
 
-	err = h.repo.CreateTransaction(ctx.Request.Context(), &req, uid)
-	if err != nil {
-		utils.HandleError(ctx, http.StatusInternalServerError, "Internal Server Error", "failed to create transaction", err)
+	// Verifikasi PIN sebelum membuat transaksi
+	verify, err := utils.VerifyUserPIN(ctx.Request.Context(), h.repo.DB, uid, req.PIN)
+	if err != nil || !verify {
+		utils.HandleError(ctx, 403, "Forbidden", "invalid PIN", err)
 		return
 	}
 
-	var redisKey = fmt.Sprintf("Prospera-HistoryTransactions_%d", uid)
-	if err := utils.InvalidateCache(ctx, h.rdb, redisKey); err != nil {
-		log.Println("Failed invalidate cache:", err)
+	if err := h.repo.CreateTransaction(ctx.Request.Context(), &req, uid); err != nil {
+		utils.HandleError(ctx, 500, "Internal Server Error", "failed to create transaction", err)
+		return
 	}
 
-	ctx.JSON(http.StatusOK, models.Response[any]{
+	ctx.JSON(200, models.Response[any]{
 		Success: true,
-		Message: "Transaction created successfully",
+		Message: "Transaction Successs",
 	})
 }
