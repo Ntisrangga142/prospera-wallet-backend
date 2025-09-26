@@ -35,7 +35,7 @@ func (h *TransactionHandler) CreateTransaction(ctx *gin.Context) {
 		return
 	}
 
-	tx, err := h.repo.CreateTransaction(ctx.Request.Context(), &req, uid)
+	err = h.repo.CreateTransaction(ctx.Request.Context(), &req, uid)
 	if err != nil {
 		utils.HandleError(ctx, http.StatusInternalServerError, "Internal Server Error", "failed to create transaction", err)
 		return
@@ -46,9 +46,8 @@ func (h *TransactionHandler) CreateTransaction(ctx *gin.Context) {
 		log.Println("Failed invalidate cache:", err)
 	}
 
-	ctx.JSON(http.StatusOK, models.Response[models.Transaction]{
+	ctx.JSON(http.StatusOK, models.Response[any]{
 		Success: true,
 		Message: "Transaction created successfully",
-		Data:    *tx,
 	})
 }

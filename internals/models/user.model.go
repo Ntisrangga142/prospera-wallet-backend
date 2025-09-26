@@ -18,13 +18,13 @@ type User struct {
 }
 
 type TransactionHistory struct {
-	ID                int       `db:"id" json:"id"`
-	Type              string    `db:"type" json:"type"`                           // jenis transaksi (transfer, topup, withdraw, dll)
-	Total             float64   `db:"total" json:"total"`                         // total nilai transaksi
-	Direction         string    `db:"direction" json:"direction"`                 // debit atau credit
-	CounterpartyType  string    `db:"counterparty_type" json:"counterparty_type"` // wallet / internal
-	CounterpartyName  string    `db:"counterparty_name" json:"counterparty_name"`
-	CounterpartyImg   *string   `db:"counterparty_img" json:"counterparty_img,omitempty"`
-	CounterpartyPhone *string   `db:"counterparty_phone" json:"counterparty_phone,omitempty"`
-	CreatedAt         time.Time `db:"created_at" json:"created_at"`
+	ID                *int       `db:"id" json:"id"`
+	Type              *string    `db:"type" json:"type"`                           // jenis transaksi (transfer, topup, withdraw, dll)
+	Total             *float64   `db:"total" json:"total"`                         // total nilai transaksi
+	Direction         *string    `db:"direction" json:"direction"`                 // debit atau credit
+	CounterpartyType  *string    `db:"counterparty_type" json:"counterparty_type"` // wallet / internal
+	CounterpartyName  *string    `db:"counterparty_name" json:"counterparty_name"`
+	CounterpartyImg   *string    `db:"counterparty_img" json:"counterparty_img,omitempty"`
+	CounterpartyPhone *string    `db:"counterparty_phone" json:"counterparty_phone,omitempty"`
+	CreatedAt         *time.Time `db:"created_at" json:"created_at"`
 }

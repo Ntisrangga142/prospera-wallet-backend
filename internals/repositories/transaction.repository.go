@@ -18,9 +18,6 @@ func NewTransactionRepository(db *pgxpool.Pool) *TransactionRepository {
 	return &TransactionRepository{db: db}
 }
 
-// -----------------------------------------------------------
-// Helper: get or create participant
-// -----------------------------------------------------------
 func (r *TransactionRepository) getOrCreateParticipant(ctx context.Context, tx pgx.Tx, typ string, refID int) (int, error) {
 	var id int
 	err := tx.QueryRow(ctx, `
@@ -36,13 +33,10 @@ func (r *TransactionRepository) getOrCreateParticipant(ctx context.Context, tx p
 	return id, nil
 }
 
-// -----------------------------------------------------------
-// Create transaction
-// -----------------------------------------------------------
-func (r *TransactionRepository) CreateTransaction(ctx context.Context, txReq *models.TransactionRequest, userID int) (*models.Transaction, error) {
+func (r *TransactionRepository) CreateTransaction(ctx context.Context, txReq *models.TransactionRequest, userID int) error {
 	tx, err := r.db.Begin(ctx)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	defer tx.Rollback(ctx) // rollback jika error
 
@@ -52,37 +46,37 @@ func (r *TransactionRepository) CreateTransaction(ctx context.Context, txReq *mo
 	case "top_up":
 		// Sender: internal account
 		if txReq.InternalAccountID == nil {
-			return nil, errors.New("internal account id required for top_up")
+			return errors.New("internal account id required for top_up")
 		}
 		senderID, err = r.getOrCreateParticipant(ctx, tx, "internal", *txReq.InternalAccountID)
 		if err != nil {
-			return nil, err
+			return err
 		}
 
 		// Receiver: wallet (userID)
 		receiverID, err = r.getOrCreateParticipant(ctx, tx, "wallet", userID)
 		if err != nil {
-			return nil, err
+			return err
 		}
 
 	case "transfer":
 		// Sender: wallet (userID)
 		senderID, err = r.getOrCreateParticipant(ctx, tx, "wallet", userID)
 		if err != nil {
-			return nil, err
+			return err
 		}
 
 		// Receiver: wallet (lain)
 		if txReq.ReceiverAccountID == nil {
-			return nil, errors.New("receiver account id required for transfer")
+			return errors.New("receiver account id required for transfer")
 		}
 		receiverID, err = r.getOrCreateParticipant(ctx, tx, "wallet", *txReq.ReceiverAccountID)
 		if err != nil {
-			return nil, err
+			return err
 		}
 
 	default:
-		return nil, fmt.Errorf("invalid transaction type: %s", txReq.Type)
+		return fmt.Errorf("invalid transaction type: %s", txReq.Type)
 	}
 
 	// Insert transaksi
@@ -110,13 +104,13 @@ func (r *TransactionRepository) CreateTransaction(ctx context.Context, txReq *mo
 		&transaction.CreatedAt,
 	)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	// Commit transaksi
 	if err := tx.Commit(ctx); err != nil {
-		return nil, err
+		return err
 	}
 
-	return &transaction, nil
+	return nil
 }
