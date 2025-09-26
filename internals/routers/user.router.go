@@ -13,9 +13,13 @@ func InitUserRouter(router *gin.Engine, db *pgxpool.Pool) {
 	uh := handlers.NewUserHandler(ur)
 
 	userGroup := router.Group("/users")
+	userGroup.Use(
+		middlewares.Authentication,
+	)
 
+	userGroup.GET("/", uh.HandleGetUserInfo)
 	userGroup.GET("/all", uh.HandlerGetAllUsers)
 	userGroup.GET("/transactions", uh.HandleGetUserTransactionsHistory)
 	userGroup.DELETE("transactions/:id", uh.HandleSoftDeleteTransaction)
-	userGroup.PATCH("/password", middlewares.Authentication, uh.ChangePassword)
+	userGroup.PATCH("/password", uh.ChangePassword)
 }
