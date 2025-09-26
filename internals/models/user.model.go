@@ -1,9 +1,11 @@
 package models
 
 type User struct {
+	ID          int     `json:"user_id"`
 	FullName    *string `json:"full_name"`
 	PhoneNumber *string `json:"phone_number"`
 	Avatar      *string `json:"avatar"`
+	IsVerified  bool    `json:"is_verified"`
 }
 
 type UserHistoryTransactions struct {
