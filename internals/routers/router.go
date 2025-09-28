@@ -10,7 +10,7 @@ import (
 
 func InitRouter(db *pgxpool.Pool, rdb *redis.Client) *gin.Engine {
 	router := gin.Default()
-	router.Use(middlewares.CORSMiddleware())
+	router.Use(middlewares.CORSMiddleware)
 	middlewares.InitRedis(rdb)
 
 	router.Static("profile", "public/profile")

@@ -2,59 +2,63 @@ package middlewares
 
 import (
 	"net/http"
+	"slices"
+	"strings"
 
 	"github.com/gin-gonic/gin"
-	"github.com/prospera/internals/utils"
 )
 
-// CORSMiddleware handle CORS for frontend development
-func CORSMiddleware() gin.HandlerFunc {
-	// Daftar origin yang diizinkan
+func CORSMiddleware(ctx *gin.Context) {
+	// Specific allowed origins
 	whitelist := []string{
-		"http://127.0.0.1:3000",
-		"http://localhost:3000",
+		"http://127.0.0.1:5500",
 		"http://localhost:5173",
-		"http://localhost:80",
 		"http://localhost",
-		"http://frontend",    // Add Docker service name
-		"http://frontend:80", // Add Docker service with port
+		"http://localhost:80",
+		"http://frontend",
+		"http://frontend:80",
 	}
 
-	return func(c *gin.Context) {
-		origin := c.GetHeader("Origin")
+	origin := ctx.GetHeader("Origin")
+	allowed := false
 
-		// Jika origin ada dan termasuk whitelist
-		allowed := false
-		for _, o := range whitelist {
-			if o == origin {
+	// Check specific whitelist first
+	if slices.Contains(whitelist, origin) {
+		allowed = true
+	} else {
+		// Allow any origin from local networks
+		localNetworks := []string{
+			"http://192.168.", // 192.168.x.x networks
+			"http://10.",      // 10.x.x.x networks
+			"http://172.",     // 172.x.x.x networks
+		}
+
+		for _, network := range localNetworks {
+			if strings.HasPrefix(origin, network) {
 				allowed = true
 				break
 			}
 		}
-
-		if origin != "" && !allowed {
-			utils.HandleMiddlewareError(c, http.StatusForbidden, "CORS origin not allowed", "CORS origin not allowed")
-			return
-		}
-
-		// Set CORS headers
-		if origin != "" && allowed {
-			c.Header("Access-Control-Allow-Origin", origin)
-		} else {
-			c.Header("Access-Control-Allow-Origin", "*")
-		}
-
-		c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
-		c.Header("Access-Control-Allow-Headers", "Authorization, Content-Type")
-		c.Header("Access-Control-Allow-Credentials", "true")
-		c.Header("Access-Control-Expose-Headers", "Authorization, Content-Type")
-
-		// Preflight request handling
-		if c.Request.Method == http.MethodOptions {
-			c.AbortWithStatus(http.StatusNoContent)
-			return
-		}
-
-		c.Next()
 	}
+
+	if allowed {
+		ctx.Header("Access-Control-Allow-Origin", origin)
+	} else {
+		// Log rejected origins for debugging
+		println("CORS origin rejected:", origin)
+	}
+
+	// Header CORS standar
+	ctx.Header("Access-Control-Allow-Methods", "GET, POST, PATCH, PUT, DELETE, OPTIONS")
+	ctx.Header("Access-Control-Allow-Headers", "Authorization, Content-Type")
+	ctx.Header("Access-Control-Allow-Credentials", "true")
+
+	// Jika request adalah preflight (OPTIONS)
+	if ctx.Request.Method == http.MethodOptions {
+		ctx.AbortWithStatus(http.StatusNoContent)
+		return
+	}
+
+	// Lanjutkan ke handler berikutnya
+	ctx.Next()
 }
