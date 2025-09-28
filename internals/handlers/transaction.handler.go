@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -35,34 +36,42 @@ func (h *TransactionHandler) CreateTransaction(ctx *gin.Context) {
 		return
 	}
 
-	// Ambil PIN user dari DB
-	storedPIN, err := h.repoAuth.VerifyUserPIN(ctx.Request.Context(), uid)
-	if err != nil {
-		utils.HandleError(ctx, http.StatusInternalServerError, "Internal Server Error", "failed to fetch user pin", err)
-		return
-	}
+	// Check PIN only for "transfer"
+	if req.Type == "transfer" {
+		// Ambil PIN user dari DB
+		storedPIN, err := h.repoAuth.VerifyUserPIN(ctx.Request.Context(), uid)
+		if err != nil {
+			utils.HandleError(ctx, http.StatusInternalServerError, "Internal Server Error", "failed to fetch user pin", err)
+			return
+		}
 
-	// Bandingkan PIN yang dikirim dengan hash
-	hashConfig := pkg.NewHashConfig()
-	hashConfig.UseRecommended()
+		// Bandingkan PIN yang dikirim dengan hash
+		hashConfig := pkg.NewHashConfig()
+		hashConfig.UseRecommended()
 
-	valid, err := hashConfig.ComparePasswordAndHash(req.PIN, storedPIN)
-	if err != nil {
-		utils.HandleError(ctx, http.StatusInternalServerError, "Internal Server Error", "failed to verify pin", err)
-		return
-	}
-	if !valid {
-		ctx.JSON(http.StatusBadRequest, models.Response[any]{
-			Success: false,
-			Message: "PIN does not match",
-		})
-		return
+		valid, err := hashConfig.ComparePasswordAndHash(req.PIN, storedPIN)
+		if err != nil {
+			utils.HandleError(ctx, http.StatusInternalServerError, "Internal Server Error", "failed to verify pin", err)
+			return
+		}
+		if !valid {
+			utils.HandleError(ctx, http.StatusForbidden, "Forbidden", "invalid PIN", nil)
+			return
+		}
 	}
 
 	// Buat transaksi
 	if err := h.repo.CreateTransaction(ctx.Request.Context(), &req, uid); err != nil {
 		utils.HandleError(ctx, http.StatusInternalServerError, "Internal Server Error", "failed to create transaction", err)
 		return
+	}
+
+	if req.Type == "transfer" {
+		message := fmt.Sprintf("Kamu menerima transfer Rp%d.00 dari user %d", req.Amount, uid)
+		pkg.WebSocketHub.SendToUser(*req.ReceiverAccountID, message)
+	} else {
+		message := fmt.Sprintf("Kamu menerima transfer Rp%d.00 dari user %d", req.Amount, uid)
+		pkg.WebSocketHub.SendToUser(uid, message)
 	}
 
 	ctx.JSON(http.StatusOK, models.Response[any]{
