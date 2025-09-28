@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"os"
 	"time"
@@ -210,49 +211,111 @@ func (h *AuthHandler) UpdatePIN(ctx *gin.Context) {
 	})
 }
 
-func (h *AuthHandler) CheckEmail(ctx *gin.Context) {
-	email := ctx.Query("email")
-	if email == "" {
-		utils.HandleError(ctx, http.StatusBadRequest, "Bad Request", "missing email query param", nil)
-		return
-	}
+// func (h *AuthHandler) CheckEmail(ctx *gin.Context) {
+// 	email := ctx.Query("email")
+// 	if email == "" {
+// 		utils.HandleError(ctx, http.StatusBadRequest, "Bad Request", "missing email query param", nil)
+// 		return
+// 	}
 
-	exists, err := h.Repo.CheckEmail(ctx, email)
-	if err != nil {
-		utils.HandleError(ctx, http.StatusInternalServerError, "Internal Server Error", "failed to check email", err)
-		return
-	}
+// 	exists, err := h.Repo.CheckEmail(ctx, email)
+// 	if err != nil {
+// 		utils.HandleError(ctx, http.StatusInternalServerError, "Internal Server Error", "failed to check email", err)
+// 		return
+// 	}
 
-	ctx.JSON(http.StatusOK, models.Response[map[string]bool]{
-		Success: true,
-		Message: "Email check successful",
-		Data: map[string]bool{
-			"exists": exists,
-		},
-	})
-}
+// 	ctx.JSON(http.StatusOK, models.Response[map[string]bool]{
+// 		Success: true,
+// 		Message: "Email check successful",
+// 		Data: map[string]bool{
+// 			"exists": exists,
+// 		},
+// 	})
+// }
 
-func (h *AuthHandler) ForgotPassword(ctx *gin.Context) {
-	var req models.ForgotPasswordRequest
+func (h *AuthHandler) Forgot(ctx *gin.Context) {
+	var req models.ForgotRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
 		utils.HandleError(ctx, 400, "Bad Request", "Invalid request", err)
 		return
 	}
 
-	// 1. Cek user
-	user, err := h.Repo.FindByEmail(req.Email)
-	if err != nil {
-		utils.HandleError(ctx, 404, "Not Found", "Email not found", err)
+	if req.Type != "password" && req.Type != "pin" {
+		utils.HandleError(ctx, 400, "Bad Request", "Invalid request", fmt.Errorf("type must be password or pin"))
 		return
 	}
 
-	// 2. Generate token
+	// Cek user
+	user, err := h.Repo.FindByEmail(req.Email)
+	if err != nil {
+		utils.HandleError(ctx, 404, "Not Found", "email not found", err)
+		return
+	}
+
+	// Generate token
 	token := utils.GenerateRandomToken()
 	h.Repo.SaveResetToken(user.ID, token, time.Now().Add(15*time.Minute))
 
-	// 3. Kirim email
+	// Kirim email
 	resetURL := os.Getenv("URL_FORGOT_PASSWORD") + token
-	utils.SendResetPasswordEmail(user.Email, resetURL)
+	utils.SendResetPasswordEmail(user.Email, resetURL, req.Type)
 
-	ctx.JSON(200, gin.H{"message": "Reset link sent to your email"})
+	ctx.JSON(200, models.Response[any]{
+		Success: true,
+		Message: "Reset link sent to your email",
+	})
+}
+
+func (h *AuthHandler) ResetPIN(ctx *gin.Context) {
+	var req models.PINResetRequest
+
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		utils.HandleError(ctx, http.StatusBadRequest, "Bad Request", "failed binding data", err)
+		return
+	}
+	// Hash Password
+	hashConfig := pkg.NewHashConfig()
+	hashConfig.UseRecommended()
+	hashedPIN, err := hashConfig.GenHash(req.PIN)
+	if err != nil {
+		utils.HandleError(ctx, http.StatusInternalServerError, "Internal Server Error", "failed hashed pin", err)
+		return
+	}
+
+	if err := h.Repo.ResetPIN(ctx, hashedPIN, req.Token); err != nil {
+		utils.HandleError(ctx, http.StatusInternalServerError, "Internal Server Error", "failed reset pin", err)
+		return
+	}
+
+	ctx.JSON(http.StatusCreated, models.Response[any]{
+		Success: true,
+		Message: "Reset PIN successful",
+	})
+}
+
+func (h *AuthHandler) ResetPassword(ctx *gin.Context) {
+	var req models.PasswordResetRequest
+
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		utils.HandleError(ctx, http.StatusBadRequest, "Bad Request", "failed binding data", err)
+		return
+	}
+	// Hash Password
+	hashConfig := pkg.NewHashConfig()
+	hashConfig.UseRecommended()
+	hashedPassword, err := hashConfig.GenHash(req.Password)
+	if err != nil {
+		utils.HandleError(ctx, http.StatusInternalServerError, "Internal Server Error", "failed hashed password", err)
+		return
+	}
+
+	if err := h.Repo.ResetPassword(ctx, hashedPassword, req.Token); err != nil {
+		utils.HandleError(ctx, http.StatusInternalServerError, "Internal Server Error", "failed reset password", err)
+		return
+	}
+
+	ctx.JSON(http.StatusCreated, models.Response[any]{
+		Success: true,
+		Message: "Reset Password successful",
+	})
 }

@@ -134,26 +134,27 @@ func (ur *Auth) VerifyUserPIN(ctx context.Context, userID int) (string, error) {
 
 }
 
-func (ur *Auth) CheckEmail(ctx context.Context, emailInput string) (bool, error) {
-	var dummy string
+// func (ur *Auth) CheckEmail(ctx context.Context, emailInput string) (bool, error) {
+// 	var dummy string
 
-	query := `
-	select
-		email
-	from
-		accounts
-	where
-		email = $1`
-	if err := ur.db.QueryRow(ctx, query, emailInput).Scan(&dummy); err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return false, nil // email not found
-		}
-		return false, err
-	}
+// 	query := `
+// 	select
+// 		email
+// 	from
+// 		accounts
+// 	where
+// 		email = $1`
+// 	if err := ur.db.QueryRow(ctx, query, emailInput).Scan(&dummy); err != nil {
+// 		if errors.Is(err, pgx.ErrNoRows) {
+// 			return false, nil // email not found
+// 		}
+// 		return false, err
+// 	}
 
-	return true, nil
-}
+// 	return true, nil
+// }
 
+// Forgot Password and PIN
 func (r *Auth) FindByEmail(email string) (*models.ForgotPasswordScan, error) {
 	var user models.ForgotPasswordScan
 	query := `
@@ -180,4 +181,46 @@ func (r *Auth) SaveResetToken(userID int, token string, expiredAt time.Time) err
     `
 	_, err := r.db.Exec(context.Background(), query, userID, token, expiredAt)
 	return err
+}
+
+// Reset PIN and Password
+func (ur *Auth) ResetPIN(rctx context.Context, newPin string, token string) error {
+	sql := `
+		UPDATE accounts
+		SET pin = $1,
+			token = NULL,
+		    expired_at = NULL,
+		    updated_at = NOW()
+		WHERE token = $2 and expired_at > NOW()
+	`
+	ctag, err := ur.db.Exec(rctx, sql, newPin, token)
+	if err != nil {
+		return err
+	}
+	if ctag.RowsAffected() == 0 {
+		return errors.New("unable to update user's PIN")
+	}
+
+	return nil
+}
+
+func (ur *Auth) ResetPassword(rctx context.Context, newPassword string, token string) error {
+	sql := `
+		UPDATE accounts
+		SET password = $1,
+			token = NULL,
+		    expired_at = NULL,
+		    updated_at = NOW()
+		WHERE token = $2 AND expired_at > NOW()
+	`
+
+	ctag, err := ur.db.Exec(rctx, sql, newPassword, token)
+	if err != nil {
+		return err
+	}
+	if ctag.RowsAffected() == 0 {
+		return errors.New("unable to update user's Password")
+	}
+
+	return nil
 }
