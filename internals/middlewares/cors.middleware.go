@@ -15,6 +15,7 @@ func CORSMiddleware() gin.HandlerFunc {
 		"http://localhost:3000",
 		"http://localhost:5173",
 		"http://localhost:80",
+		"http://localhost",
 		"http://frontend",    // Add Docker service name
 		"http://frontend:80", // Add Docker service with port
 	}
