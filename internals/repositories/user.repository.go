@@ -407,7 +407,7 @@ func (r *UserRepository) GetBalanceByWalletID(ctx context.Context, walletID int)
 func (r *UserRepository) DeleteAvatar(ctx context.Context, uid int) error {
 	sql := `
 		UPDATE profiles
-		SET img = NULL
+		SET img = NULL, updated_at = NOW()
 		WHERE id = $1
 	`
 	ctag, err := r.db.Exec(ctx, sql, uid)

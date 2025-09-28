@@ -23,14 +23,13 @@ func NewAuthRepo(Db *pgxpool.Pool, Rdb *redis.Client) *Auth {
 	return &Auth{db: Db, rdb: Rdb}
 }
 
-func (r *Auth) Register(ctx context.Context, email, password string) error {
+func (r *Auth) Register(ctx context.Context, email, password string) ([]int, error) {
 	// mulai transaction
 	tx, err := r.db.Begin(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to begin transaction")
+		return nil, fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
-		// kalau ada panic / lupa commit → rollback
 		if err != nil {
 			_ = tx.Rollback(ctx)
 		}
@@ -40,33 +39,55 @@ func (r *Auth) Register(ctx context.Context, email, password string) error {
 	var userID int
 	queryAccount := `INSERT INTO accounts (email, password) VALUES ($1, $2) RETURNING id`
 	if err = tx.QueryRow(ctx, queryAccount, email, password).Scan(&userID); err != nil {
-		return fmt.Errorf("failed to insert accounts = %w", err)
+		return nil, fmt.Errorf("failed to insert accounts = %w", err)
 	}
 
 	// insert ke profiles
 	queryUser := `INSERT INTO profiles (id, fullname, phone, img) VALUES ($1, NULL, NULL, NULL);`
 	if _, err = tx.Exec(ctx, queryUser, userID); err != nil {
-		return fmt.Errorf("failed to insert profiles = %w", err)
+		return nil, fmt.Errorf("failed to insert profiles = %w", err)
 	}
 
 	// insert ke wallets
-	queryWallet := `INSERT INTO wallets (id, balance) VALUES ($1, 0) RETURNING id;`
 	var walletID int
+	queryWallet := `INSERT INTO wallets (id, balance) VALUES ($1, 0) RETURNING id;`
 	if err = tx.QueryRow(ctx, queryWallet, userID).Scan(&walletID); err != nil {
-		return fmt.Errorf("failed to insert wallets = %w", err)
+		return nil, fmt.Errorf("failed to insert wallets = %w", err)
 	}
 
+	// insert ke participants
 	queryParticipant := `INSERT INTO participants (type, ref_id, created_at) VALUES ('wallet', $1, NOW());`
 	if _, err = tx.Exec(ctx, queryParticipant, walletID); err != nil {
-		return fmt.Errorf("failed to insert profiles = %w", err)
+		return nil, fmt.Errorf("failed to insert participants = %w", err)
+	}
+
+	// ambil semua user ID lain
+	queryAllUser := `SELECT id FROM accounts WHERE id != $1;`
+	rows, err := tx.Query(ctx, queryAllUser, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query accounts = %w", err)
+	}
+	defer rows.Close()
+
+	var allUserIDs []int
+	for rows.Next() {
+		var id int
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("failed to scan account id = %w", err)
+		}
+		allUserIDs = append(allUserIDs, id)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("row iteration error = %w", err)
 	}
 
 	// commit transaction
 	if err = tx.Commit(ctx); err != nil {
-		return fmt.Errorf("failed to commit transaction")
+		return nil, fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
-	return nil
+	return allUserIDs, nil
 }
 
 func (r *Auth) Login(ctx context.Context, email string) (int, string, bool, error) {

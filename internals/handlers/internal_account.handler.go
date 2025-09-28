@@ -26,7 +26,7 @@ func (h *InternalAccountHandler) GetAll(c *gin.Context) {
 	if err := utils.CacheHit(c.Request.Context(), h.rdb, redisKey, &cachedData); err == nil {
 		c.JSON(http.StatusOK, models.Response[any]{
 			Success: true,
-			Message: "Success Get Profile User (from cache)",
+			Message: "Success Get Internal Account (from cache)",
 			Data:    cachedData,
 		})
 		return
