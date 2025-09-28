@@ -11,7 +11,7 @@ import (
 
 func InitAuthRoutes(router *gin.Engine, db *pgxpool.Pool, rdb *redis.Client) {
 	repo := repositories.NewAuthRepo(db, rdb)
-	handler := handlers.NewAuthHandler(repo)
+	handler := handlers.NewAuthHandler(repo, rdb)
 
 	auth := router.Group("/auth")
 
@@ -37,7 +37,7 @@ func InitAuthRoutes(router *gin.Engine, db *pgxpool.Pool, rdb *redis.Client) {
 	auth.POST("/pin", middlewares.Authentication, handler.UpdatePIN)
 
 	// Verify PIN
-	auth.POST("/verify-pin", middlewares.Authentication, handler.VerifyPIN)
+	auth.GET("/pin", middlewares.Authentication, handler.VerifyPIN)
 
 	// // Verify email
 	// auth.GET("/verify-password", handler.CheckEmail)

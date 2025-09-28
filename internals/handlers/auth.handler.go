@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"time"
@@ -13,14 +14,16 @@ import (
 	"github.com/prospera/internals/pkg"
 	"github.com/prospera/internals/repositories"
 	"github.com/prospera/internals/utils"
+	"github.com/redis/go-redis/v9"
 )
 
 type AuthHandler struct {
 	Repo *repositories.Auth
+	rdb  *redis.Client
 }
 
-func NewAuthHandler(repo *repositories.Auth) *AuthHandler {
-	return &AuthHandler{Repo: repo}
+func NewAuthHandler(repo *repositories.Auth, rdb *redis.Client) *AuthHandler {
+	return &AuthHandler{Repo: repo, rdb: rdb}
 }
 
 func (h *AuthHandler) Register(ctx *gin.Context) {
@@ -40,9 +43,17 @@ func (h *AuthHandler) Register(ctx *gin.Context) {
 		return
 	}
 
-	if err := h.Repo.Register(ctx, req.Email, hashedPassword); err != nil {
+	listId, err := h.Repo.Register(ctx, req.Email, hashedPassword)
+	if err != nil {
 		utils.HandleError(ctx, http.StatusInternalServerError, "Internal Server Error", "Email is already registered", err)
 		return
+	}
+
+	for _, v := range listId {
+		var redisKey = fmt.Sprintf("Prospera-AllUser-%d", v)
+		if err := utils.InvalidateCache(ctx, h.rdb, redisKey); err != nil {
+			log.Println("Failed invalidate cache:", err)
+		}
 	}
 
 	ctx.JSON(http.StatusCreated, models.Response[any]{

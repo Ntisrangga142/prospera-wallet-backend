@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"fmt"
+	"log"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -36,28 +37,25 @@ func (h *TransactionHandler) CreateTransaction(ctx *gin.Context) {
 		return
 	}
 
-	// Check PIN only for "transfer"
-	if req.Type == "transfer" {
-		// Ambil PIN user dari DB
-		storedPIN, err := h.repoAuth.VerifyUserPIN(ctx.Request.Context(), uid)
-		if err != nil {
-			utils.HandleError(ctx, http.StatusInternalServerError, "Internal Server Error", "failed to fetch user pin", err)
-			return
-		}
+	// Ambil PIN user dari DB
+	storedPIN, err := h.repoAuth.VerifyUserPIN(ctx.Request.Context(), uid)
+	if err != nil {
+		utils.HandleError(ctx, http.StatusInternalServerError, "Internal Server Error", "failed to fetch user pin", err)
+		return
+	}
 
-		// Bandingkan PIN yang dikirim dengan hash
-		hashConfig := pkg.NewHashConfig()
-		hashConfig.UseRecommended()
+	// Bandingkan PIN yang dikirim dengan hash
+	hashConfig := pkg.NewHashConfig()
+	hashConfig.UseRecommended()
 
-		valid, err := hashConfig.ComparePasswordAndHash(req.PIN, storedPIN)
-		if err != nil {
-			utils.HandleError(ctx, http.StatusInternalServerError, "Internal Server Error", "failed to verify pin", err)
-			return
-		}
-		if !valid {
-			utils.HandleError(ctx, http.StatusForbidden, "Forbidden", "invalid PIN", nil)
-			return
-		}
+	valid, err := hashConfig.ComparePasswordAndHash(req.PIN, storedPIN)
+	if err != nil {
+		utils.HandleError(ctx, http.StatusInternalServerError, "Internal Server Error", "failed to verify pin", err)
+		return
+	}
+	if !valid {
+		utils.HandleError(ctx, http.StatusForbidden, "Forbidden", "invalid PIN", fmt.Errorf("invalid PIN"))
+		return
 	}
 
 	// Buat transaksi
@@ -72,6 +70,42 @@ func (h *TransactionHandler) CreateTransaction(ctx *gin.Context) {
 	} else {
 		message := fmt.Sprintf("Kamu menerima transfer Rp%d.00 dari user %d", req.Amount, uid)
 		pkg.WebSocketHub.SendToUser(uid, message)
+	}
+
+	var redisKey1 = fmt.Sprintf("Prospera-Summary-daily-%d", uid)
+	if err := utils.InvalidateCache(ctx, h.rdb, redisKey1); err != nil {
+		log.Println("Failed invalidate cache:", err)
+	}
+	var redisKey2 = fmt.Sprintf("Prospera-Summary-weekly-%d", uid)
+	if err := utils.InvalidateCache(ctx, h.rdb, redisKey2); err != nil {
+		log.Println("Failed invalidate cache:", err)
+	}
+	var redisKey3 = fmt.Sprintf("Prospera-Balance-%d", uid)
+	if err := utils.InvalidateCache(ctx, h.rdb, redisKey3); err != nil {
+		log.Println("Failed invalidate cache:", err)
+	}
+	var redisKey4 = fmt.Sprintf("Prospera-HistoryTransaction-1-%d", uid)
+	if err := utils.InvalidateCache(ctx, h.rdb, redisKey4); err != nil {
+		log.Println("Failed invalidate cache:", err)
+	}
+
+	if req.Type == "transfer" {
+		var redisKey2 = fmt.Sprintf("Prospera-Summary-daily-%d", *req.ReceiverAccountID)
+		if err := utils.InvalidateCache(ctx, h.rdb, redisKey2); err != nil {
+			log.Println("Failed invalidate cache:", err)
+		}
+		var redisKey1 = fmt.Sprintf("Prospera-Summary-weekly-%d", *req.ReceiverAccountID)
+		if err := utils.InvalidateCache(ctx, h.rdb, redisKey1); err != nil {
+			log.Println("Failed invalidate cache:", err)
+		}
+		var redisKey3 = fmt.Sprintf("Prospera-Balance-%d", *req.ReceiverAccountID)
+		if err := utils.InvalidateCache(ctx, h.rdb, redisKey3); err != nil {
+			log.Println("Failed invalidate cache:", err)
+		}
+		var redisKey4 = fmt.Sprintf("Prospera-HistoryTransaction-1-%d", *req.ReceiverAccountID)
+		if err := utils.InvalidateCache(ctx, h.rdb, redisKey4); err != nil {
+			log.Println("Failed invalidate cache:", err)
+		}
 	}
 
 	ctx.JSON(http.StatusOK, models.Response[any]{

@@ -47,7 +47,7 @@ func (uh *UserHandler) GetProfile(ctx *gin.Context) {
 	profile, err := uh.ur.GetProfile(ctx.Request.Context(), uid)
 	if err != nil {
 		utils.HandleError(ctx, http.StatusInternalServerError, "Internal Server Error", "unable get profile user", err)
-		return
+		// return
 	}
 
 	if err := utils.RenewCache(ctx.Request.Context(), uh.rdb, redisKey, profile, 10); err != nil {
@@ -119,16 +119,16 @@ func (uh *UserHandler) GetAllUsers(ctx *gin.Context) {
 		return
 	}
 
-	// var cachedData []models.User
-	// var redisKey = fmt.Sprintf("Prospera-AllUser-%d", uid)
-	// if err := utils.CacheHit(ctx.Request.Context(), uh.rdb, redisKey, &cachedData); err == nil {
-	// 	ctx.JSON(http.StatusOK, models.Response[[]models.User]{
-	// 		Success: true,
-	// 		Message: "Success Get History (from cache)",
-	// 		Data:    cachedData,
-	// 	})
-	// 	return
-	// }
+	var cachedData []models.User
+	var redisKey = fmt.Sprintf("Prospera-AllUser-%d", uid)
+	if err := utils.CacheHit(ctx.Request.Context(), uh.rdb, redisKey, &cachedData); err == nil {
+		ctx.JSON(http.StatusOK, models.Response[[]models.User]{
+			Success: true,
+			Message: "Success Get All Users (from cache)",
+			Data:    cachedData,
+		})
+		return
+	}
 
 	users, err := uh.ur.GetAllUser(ctx.Request.Context(), uid)
 	if err != nil {
@@ -136,9 +136,9 @@ func (uh *UserHandler) GetAllUsers(ctx *gin.Context) {
 		return
 	}
 
-	// if err := utils.RenewCache(ctx.Request.Context(), uh.rdb, redisKey, users, 10); err != nil {
-	// 	log.Println("Failed to set redis cache:", err)
-	// }
+	if err := utils.RenewCache(ctx.Request.Context(), uh.rdb, redisKey, users, 10); err != nil {
+		log.Println("Failed to set redis cache:", err)
+	}
 
 	ctx.JSON(http.StatusOK, models.Response[[]models.User]{
 		Success: true,
@@ -165,6 +165,19 @@ func (h *UserHandler) GetUserHistoryTransactions(c *gin.Context) {
 	limit := 7
 	offset := (page - 1) * limit
 
+	if page == 1 {
+		var cachedData []models.TransactionHistory
+		var redisKey = fmt.Sprintf("Prospera-HistoryTransaction-%d-%d", page, userID)
+		if err := utils.CacheHit(c.Request.Context(), h.rdb, redisKey, &cachedData); err == nil {
+			c.JSON(http.StatusOK, models.Response[any]{
+				Success: true,
+				Message: "Success Get History Transaction (from cache)",
+				Data:    cachedData,
+			})
+			return
+		}
+	}
+
 	// Ambil data transaksi + total count
 	transactions, total, err := h.ur.GetUserHistoryTransactions(c.Request.Context(), userID, limit, offset)
 	if err != nil {
@@ -173,6 +186,13 @@ func (h *UserHandler) GetUserHistoryTransactions(c *gin.Context) {
 	}
 
 	totalPages := int(math.Ceil(float64(total) / float64(limit)))
+
+	if page == 1 {
+		var redisKey = fmt.Sprintf("Prospera-HistoryTransaction-%d-%d", page, userID)
+		if err := utils.RenewCache(c.Request.Context(), h.rdb, redisKey, transactions, 10); err != nil {
+			log.Println("Failed to set redis cache:", err)
+		}
+	}
 
 	c.JSON(http.StatusOK, models.PaginatedResponse[[]models.TransactionHistory]{
 		Success:    true,
@@ -201,7 +221,7 @@ func (uh *UserHandler) HandleSoftDeleteTransaction(ctx *gin.Context) {
 		utils.HandleError(ctx, http.StatusInternalServerError, "Internal Server Error", "unable to delete history", err)
 	}
 
-	var redisKey = fmt.Sprintf("Prospera-HistoryTransactions_%d", uid)
+	var redisKey = fmt.Sprintf("Prospera-HistoryTransaction-1-%d", uid)
 	if err := utils.InvalidateCache(ctx, uh.rdb, redisKey); err != nil {
 		log.Println("Failed invalidate cache:", err)
 	}
@@ -280,12 +300,26 @@ func (h *UserHandler) GetSummary(c *gin.Context) {
 	// Ambil query parameter "range", default daily
 	rangeType := c.DefaultQuery("range", "daily")
 
+	var cachedData models.Profile
+	var redisKey = fmt.Sprintf("Prospera-Summary-%s-%d", rangeType, userID)
+	if err := utils.CacheHit(c.Request.Context(), h.rdb, redisKey, &cachedData); err == nil {
+		c.JSON(http.StatusOK, models.Response[any]{
+			Success: true,
+			Message: fmt.Sprintf("Success Get Summary %s (from cache)", rangeType),
+			Data:    cachedData,
+		})
+		return
+	}
+
 	switch rangeType {
 	case "daily":
 		summaries, err := h.ur.GetDailySummary(c, userID)
 		if err != nil {
 			utils.HandleError(c, http.StatusInternalServerError, "Internal Server Error", "Failed Get Summary Daily", err)
 			return
+		}
+		if err := utils.RenewCache(c.Request.Context(), h.rdb, redisKey, summaries, 10); err != nil {
+			log.Println("Failed to set redis cache:", err)
 		}
 		c.JSON(http.StatusOK, models.Response[any]{
 			Success: true,
@@ -299,6 +333,9 @@ func (h *UserHandler) GetSummary(c *gin.Context) {
 			utils.HandleError(c, http.StatusInternalServerError, "Internal Server Error", "Failed Get Summary Weekly", err)
 			return
 		}
+		if err := utils.RenewCache(c.Request.Context(), h.rdb, redisKey, summaries, 10); err != nil {
+			log.Println("Failed to set redis cache:", err)
+		}
 		c.JSON(http.StatusOK, models.Response[any]{
 			Success: true,
 			Message: "Success Get Summary Daily",
@@ -307,7 +344,9 @@ func (h *UserHandler) GetSummary(c *gin.Context) {
 
 	default:
 		utils.HandleError(c, http.StatusInternalServerError, "Internal Server Error", "invalid range type, must be 'daily' or 'weekly", err)
+		return
 	}
+
 }
 
 // GET BALANCE
@@ -318,10 +357,25 @@ func (h *UserHandler) GetBalance(ctx *gin.Context) {
 		return
 	}
 
+	var cachedData int
+	var redisKey = fmt.Sprintf("Prospera-Balance-%d", uid)
+	if err := utils.CacheHit(ctx.Request.Context(), h.rdb, redisKey, &cachedData); err == nil {
+		ctx.JSON(http.StatusOK, models.Response[any]{
+			Success: true,
+			Message: "Success Get Balance (from cache)",
+			Data:    cachedData,
+		})
+		return
+	}
+
 	balance, err := h.ur.GetBalanceByWalletID(ctx.Request.Context(), uid)
 	if err != nil {
 		utils.HandleError(ctx, http.StatusNotFound, "Not Found", "wallet not found", err)
 		return
+	}
+
+	if err := utils.RenewCache(ctx.Request.Context(), h.rdb, redisKey, balance, 10); err != nil {
+		log.Println("Failed to set redis cache:", err)
 	}
 
 	ctx.JSON(http.StatusOK, models.Response[any]{
@@ -341,6 +395,11 @@ func (h *UserHandler) RemoveAvatar(ctx *gin.Context) {
 	if err := h.ur.DeleteAvatar(ctx.Request.Context(), uid); err != nil {
 		utils.HandleError(ctx, http.StatusInternalServerError, "Internal Server Error", "Unable to remove user's avatar", err)
 		return
+	}
+
+	var redisKey = fmt.Sprintf("Prospera-Profile-%d", uid)
+	if err := utils.InvalidateCache(ctx, h.rdb, redisKey); err != nil {
+		log.Println("Failed invalidate cache:", err)
 	}
 
 	ctx.JSON(http.StatusOK, models.Response[string]{
