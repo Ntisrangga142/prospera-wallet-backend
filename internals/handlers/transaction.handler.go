@@ -53,7 +53,10 @@ func (h *TransactionHandler) CreateTransaction(ctx *gin.Context) {
 		return
 	}
 	if !valid {
-		utils.HandleError(ctx, http.StatusForbidden, "Forbidden", "invalid PIN", nil)
+		ctx.JSON(http.StatusBadRequest, models.Response[any]{
+			Success: false,
+			Message: "PIN does not match",
+		})
 		return
 	}
 
