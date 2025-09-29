@@ -28,7 +28,7 @@ type PINRequest struct {
 
 type ChangePINRequest struct {
 	OldPIN string `json:"old_pin" example:"123456"`
-	NewPIN string `json:"new_pin" example:"123456"`
+	NewPIN string `json:"new_pin" example:"123123"`
 }
 
 type ForgotRequest struct {

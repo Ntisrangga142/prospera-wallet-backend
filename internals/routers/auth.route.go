@@ -36,7 +36,7 @@ func InitAuthRoutes(router *gin.Engine, db *pgxpool.Pool, rdb *redis.Client) {
 	// Create PIN
 	auth.POST("/pin", middlewares.Authentication, handler.UpdatePIN)
 
-	// Change PIN
+	// Change PIN (used in profile/change)
 	auth.POST("/change-pin", middlewares.Authentication, handler.ChangePIN)
 
 	// Verify PIN

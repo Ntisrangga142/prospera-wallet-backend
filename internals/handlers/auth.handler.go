@@ -222,6 +222,7 @@ func (h *AuthHandler) UpdatePIN(ctx *gin.Context) {
 	})
 }
 
+// Used in profile/change-pin
 // Check old pin, if matches then update to new pin
 func (h *AuthHandler) ChangePIN(ctx *gin.Context) {
 	var req models.ChangePINRequest
