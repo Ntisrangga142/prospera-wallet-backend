@@ -37,25 +37,28 @@ func (h *TransactionHandler) CreateTransaction(ctx *gin.Context) {
 		return
 	}
 
-	// Ambil PIN user dari DB
-	storedPIN, err := h.repoAuth.VerifyUserPIN(ctx.Request.Context(), uid)
-	if err != nil {
-		utils.HandleError(ctx, http.StatusInternalServerError, "Internal Server Error", "failed to fetch user pin", err)
-		return
-	}
+	// Check PIN only for transfer
+	if req.Type == "transfer" {
+		// Ambil PIN user dari DB
+		storedPIN, err := h.repoAuth.VerifyUserPIN(ctx.Request.Context(), uid)
+		if err != nil {
+			utils.HandleError(ctx, http.StatusInternalServerError, "Internal Server Error", "failed to fetch user pin", err)
+			return
+		}
 
-	// Bandingkan PIN yang dikirim dengan hash
-	hashConfig := pkg.NewHashConfig()
-	hashConfig.UseRecommended()
+		// Bandingkan PIN yang dikirim dengan hash
+		hashConfig := pkg.NewHashConfig()
+		hashConfig.UseRecommended()
 
-	valid, err := hashConfig.ComparePasswordAndHash(req.PIN, storedPIN)
-	if err != nil {
-		utils.HandleError(ctx, http.StatusInternalServerError, "Internal Server Error", "failed to verify pin", err)
-		return
-	}
-	if !valid {
-		utils.HandleError(ctx, http.StatusForbidden, "Forbidden", "invalid PIN", fmt.Errorf("invalid PIN"))
-		return
+		valid, err := hashConfig.ComparePasswordAndHash(req.PIN, storedPIN)
+		if err != nil {
+			utils.HandleError(ctx, http.StatusInternalServerError, "Internal Server Error", "failed to verify pin", err)
+			return
+		}
+		if !valid {
+			utils.HandleError(ctx, http.StatusForbidden, "Forbidden", "invalid PIN", fmt.Errorf("invalid PIN"))
+			return
+		}
 	}
 
 	// Buat transaksi
