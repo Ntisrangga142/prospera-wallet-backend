@@ -222,6 +222,69 @@ func (h *AuthHandler) UpdatePIN(ctx *gin.Context) {
 	})
 }
 
+// Used in profile/change-pin
+// Check old pin, if matches then update to new pin
+func (h *AuthHandler) ChangePIN(ctx *gin.Context) {
+	var req models.ChangePINRequest
+
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		utils.HandleError(ctx, http.StatusBadRequest, "Bad Request", "failed binding data", err)
+		return
+	}
+
+	// Get ID from Token
+	uid, err := utils.GetUserIDFromJWT(ctx)
+	if err != nil {
+		utils.HandleError(ctx, http.StatusInternalServerError, "Internal Server Error", "unable to get user's token", err)
+		return
+	}
+
+	// Verify Old Pin
+	// Ambil pin yang tersimpan dari repo
+	storedPIN, err := h.Repo.VerifyUserPIN(ctx.Request.Context(), uid)
+	if err != nil {
+		utils.HandleError(ctx, http.StatusInternalServerError, "Internal Server Error", "failed to fetch account", err)
+		return
+	}
+
+	// Compare di handler
+	hashConfig := pkg.NewHashConfig()
+	hashConfig.UseRecommended()
+	valid, err := hashConfig.ComparePasswordAndHash(req.OldPIN, storedPIN)
+	if err != nil {
+		utils.HandleError(ctx, http.StatusInternalServerError, "Internal Server Error", "failed to compare pin", err)
+		return
+	}
+
+	if !valid {
+		ctx.JSON(http.StatusBadRequest, models.Response[bool]{
+			Success: false,
+			Message: "PIN does not match",
+			Data:    valid,
+		})
+		return
+	}
+
+	// Hash Password
+	hashConfig.UseRecommended()
+	hashedPIN, err := hashConfig.GenHash(req.NewPIN)
+	if err != nil {
+		utils.HandleError(ctx, http.StatusInternalServerError, "Internal Server Error", "failed hashed password", err)
+		return
+	}
+
+	if err := h.Repo.UpdatePIN(ctx, hashedPIN, uid); err != nil {
+		utils.HandleError(ctx, http.StatusInternalServerError, "Internal Server Error", "failed created account", err)
+		return
+	}
+
+	ctx.JSON(http.StatusCreated, models.Response[string]{
+		Success: true,
+		Message: "Change PIN successful",
+		Data:    "",
+	})
+}
+
 // func (h *AuthHandler) CheckEmail(ctx *gin.Context) {
 // 	email := ctx.Query("email")
 // 	if email == "" {

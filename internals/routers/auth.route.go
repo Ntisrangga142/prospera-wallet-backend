@@ -33,8 +33,11 @@ func InitAuthRoutes(router *gin.Engine, db *pgxpool.Pool, rdb *redis.Client) {
 	// Reset Password
 	auth.POST("/reset-password", handler.ResetPassword)
 
-	// Create Or Change PIN
+	// Create PIN
 	auth.POST("/pin", middlewares.Authentication, handler.UpdatePIN)
+
+	// Change PIN (used in profile/change)
+	auth.POST("/change-pin", middlewares.Authentication, handler.ChangePIN)
 
 	// Verify PIN
 	auth.POST("/verify-pin", middlewares.Authentication, handler.VerifyPIN)
