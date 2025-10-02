@@ -338,7 +338,10 @@ func (h *AuthHandler) Forgot(ctx *gin.Context) {
 		resetURL = fmt.Sprintf("%sauth/create/pin?token=%s", os.Getenv("URL_BASE"), token)
 	}
 
-	utils.SendResetPasswordEmail(user.Email, resetURL, req.Type)
+	if err := utils.SendResetPasswordEmail(user.Email, resetURL, req.Type); err != nil {
+		utils.HandleError(ctx, 404, "Not Found", "email not found", err)
+		return
+	}
 
 	ctx.JSON(200, models.Response[any]{
 		Success: true,

@@ -13,7 +13,6 @@ import (
 
 var RDB *redis.Client
 
-// InitRedis untuk inisialisasi redis client di middleware
 func InitRedis(rdb *redis.Client) {
 	RDB = rdb
 }
