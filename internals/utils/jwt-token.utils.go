@@ -12,12 +12,18 @@ import (
 func GetUserIDFromJWT(ctx *gin.Context) (int, error) {
 	// Ambil header Authorization
 	authHeader := ctx.GetHeader("Authorization")
-	if authHeader == "" {
-		return 0, errors.New("missing token")
-	}
+	var tokenStr string
 
-	// Buang prefix "Bearer "
-	tokenStr := strings.TrimPrefix(authHeader, "Bearer ")
+	if authHeader != "" {
+		// Buang prefix "Bearer "
+		tokenStr = strings.TrimPrefix(authHeader, "Bearer ")
+	} else {
+		// Kalau tidak ada di header, coba ambil dari query params
+		tokenStr = ctx.Query("token")
+		if tokenStr == "" {
+			return 0, errors.New("missing token")
+		}
+	}
 
 	// Siapkan struct Claims
 	claims := &pkg.Claims{}
