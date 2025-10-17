@@ -1,0 +1,2 @@
+DROP TABLE IF EXISTS transactions CASCADE;
+DROP TYPE IF EXISTS type_transaction CASCADE;

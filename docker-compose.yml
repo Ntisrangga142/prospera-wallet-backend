@@ -1,0 +1,50 @@
+services:
+  pg-db:
+    image: postgres:18-alpine3.22
+    env_file:
+      - ./prod.env
+    networks:
+      - prospera-net
+    ports:
+      - "5422:5432" # Host 5422 → Container 5432
+    volumes:
+      - pg-prospera:/var/lib/postgresql/data
+
+  rdb:
+    image: redis:8.2-alpine
+    env_file:
+      - ./prod.env
+    volumes:
+      - redis-prospera:/data
+    networks:
+      - prospera-net
+    ports:
+      - 6369:6379 # Host 6369 → Container 6379
+
+  backend:
+    image: ghcr.io/radifan9/radif-prospera-wallet-backend:latest
+    volumes:
+      - ./prod.env:/app/.env # untuk pass env
+    networks:
+      - prospera-net
+    ports:
+      - "8080:8080"
+    depends_on:
+      - pg-db
+      - rdb
+
+  frontend:
+    image: ghcr.io/radifan9/radif-prospera-wallet-frontend:latest
+    networks:
+      - prospera-net
+    ports:
+    - 80:80
+    depends_on:
+      - backend
+
+networks:
+  prospera-net:
+
+volumes:
+  pg-prospera:
+  redis-prospera:
